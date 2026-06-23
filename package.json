@@ -1,0 +1,26 @@
+{
+  "name": "circletest",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "create-wallet": "tsx create-wallet.ts",
+    "register": "tsx register-entity-secret.ts",
+    "send-tokens": "tsx --env-file=.env send-tokens.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@circle-fin/developer-controlled-wallets": "^10.6.0",
+    "dotenv": "^17.4.2",
+    "viem": "^2.53.1"
+  }
+}
