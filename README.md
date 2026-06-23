@@ -1,6 +1,6 @@
 # Circle Developer-Controlled Wallet Demo by Pharst
 
-A TypeScript project demonstrating how to use Circle's Developer-Controlled Wallets SDK.
+A TypeScript project demonstrating how to use Circle's Developer-Controlled Wallets SDK in accordance to https://community.arc.io/home/videos/using-circle-developer-controlled-wallets-to-send-and-manage-usdc-2026-01-20.
 
 ## Features
 
@@ -14,15 +14,17 @@ A TypeScript project demonstrating how to use Circle's Developer-Controlled Wall
 ## Prerequisites
 
 * Node.js 22+
-* Circle Developer Account
+* Circle Developer Account(console.circle.com)
 * Circle API Key
-* Registered Entity Secret
+
+
+
 
 ## Installation
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/circle-wallet-demo.git
-cd circle-wallet-demo
+git clone [https://github.com/YOUR_USERNAME/circle-wallet-demo.git](https://github.com/TheUnknown250/CircleDevControlledWallets-Demo.git)
+cd CircleDevControlledWallets-demo
 npm install
 ```
 
@@ -32,13 +34,12 @@ Create a `.env` file:
 
 ```env
 CIRCLE_API_KEY=YOUR_API_KEY
-CIRCLE_ENTITY_SECRET=YOUR_ENTITY_SECRET
 ```
 
 ## Register Entity Secret
 
 ```bash
-npm run register
+npm run register-entity-secret
 ```
 
 ## Create Wallet
@@ -69,6 +70,4 @@ Never commit API keys, entity secrets, recovery files, or wallet credentials.
 * Node.js
 * Circle Developer-Controlled Wallets SDK
 
-## License
-
-MIT
+Built by Pharst
