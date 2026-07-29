@@ -4,11 +4,13 @@ import process from "node:process";
 
 // Replace the source and destination constants with your own wallet values
 const SOURCE_WALLET_ADDRESS: string =
-  "0xe246411fb35eddd62a56f09e468c0d40865a3375"; // Used with blockchain to identify the source wallet
+  "0xe246411fb35eddd62a56f09e468c0d40865a3375";
 const SOURCE_WALLET_BLOCKCHAIN = "ARC-TESTNET"; // Used with blockchain to identify the source wallet
 const DESTINATION_WALLET_ADDRESS: string =
-  "0xdd24fdb60ea373b032f7d570f608ff9d92236a7d"; // Recipient wallet address
-const DESTINATION_WALLET_ID: string = "71d52713-1378-54c1-aa61-020e0d318856" // Used for post-transfer balance check only
+  "0xa33fcc09f58b5391ef7955bb4dfd345827d3aac5";
+
+const DESTINATION_WALLET_ID: string =
+  "42c88902-d826-56d2-acd3-5ff0db6be7cb";
 const ARC_TESTNET_USDC: string = "0x3600000000000000000000000000000000000000";
 const TRANSFER_AMOUNT_USDC: string = "0.001"; // Token quantity as a string
 
@@ -80,6 +82,4 @@ async function main() {
 main().catch((err) => {
   console.error("Error:", err.message || err);
   process.exit(1);
-  });
-  
-  
+});rn
