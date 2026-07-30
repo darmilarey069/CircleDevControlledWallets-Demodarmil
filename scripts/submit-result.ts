@@ -9,7 +9,15 @@ const PROVIDER_WALLET_ID =
 const CONTRACT_ADDRESS =
   "0x635470aff03f11eb4f16cd11c4b7c4884132204c";
 
-const JOB_ID = "1";
+const jobIdArg = process.argv[2];
+
+if (!jobIdArg || !/^\d+$/.test(jobIdArg)) {
+  throw new Error(
+    "Provide a numeric job ID, for example: npx tsx .\\scripts\\submit-result.ts 2",
+  );
+}
+
+const JOB_ID = jobIdArg;
 
 const RESULT_DESCRIPTION =
   "Completed result for Veris Arc Testnet escrow lifecycle test";
