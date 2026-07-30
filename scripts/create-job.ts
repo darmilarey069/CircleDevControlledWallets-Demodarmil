@@ -16,8 +16,24 @@ const CONTRACT_ADDRESS =
   "0x635470aff03f11eb4f16cd11c4b7c4884132204c";
 
 const ESCROW_AMOUNT = "0.01";
-const WORK_WINDOW_SECONDS = 86400;
-const VERIFICATION_WINDOW_SECONDS = 86400;
+const WORK_WINDOW_SECONDS = Number(
+  process.argv[2] ?? "86400",
+);
+
+const VERIFICATION_WINDOW_SECONDS = Number(
+  process.argv[3] ?? "86400",
+);
+
+if (
+  !Number.isSafeInteger(WORK_WINDOW_SECONDS) ||
+  WORK_WINDOW_SECONDS <= 0 ||
+  !Number.isSafeInteger(VERIFICATION_WINDOW_SECONDS) ||
+  VERIFICATION_WINDOW_SECONDS <= 0
+) {
+  throw new Error(
+    "Deadline windows must be positive whole numbers in seconds.",
+  );
+}
 const TASK_DESCRIPTION =
   "Veris Arc Testnet escrow lifecycle test";
 
