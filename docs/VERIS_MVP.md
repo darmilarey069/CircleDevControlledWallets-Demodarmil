@@ -70,3 +70,27 @@ Each job stores:
 - No partial payments
 - No dispute arbitration
 - Arc Testnet only
+
+## Validated Arc Testnet milestone
+
+On 30 July 2026, Job 1 completed the full Veris escrow happy path on Arc Testnet.
+
+- The requester created and funded Job 1 with 0.01 USDC
+- The provider submitted a cryptographic hash of the completed result
+- The assigned verifier approved the submission
+- The contract released the escrow payment to the provider
+- The stored escrow amount changed from 0.01 USDC to zero
+- The job status changed from FUNDED to SUBMITTED and finally RELEASED
+- The providerâ€™s wallet balance increased after settlement
+
+### Deployment
+
+- Contract address: 0x635470aff03f11eb4f16cd11c4b7c4884132204c
+
+### Lifecycle transactions
+
+- Job creation: 0xcf74fa1c00785d062e05c6abb35efd920f76f0e1e0739418af6133995f2f9777
+- Result submission: 0xabb88a71487c45b52cf02415498d3b6b5d23336c94d77dff08d4be157168e576
+- Result approval and payment release: 0x1aa08fe4f4bf29f0d3299ee94c575467b3a73eee380c7f8167c0a6d40e79aaa4
+
+This validates the core escrow settlement mechanism. Refund paths, backend automation, database integration and the user-facing interface remain to be tested or implemented.rn
