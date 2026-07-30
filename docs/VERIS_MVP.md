@@ -1,4 +1,4 @@
-# Veris MVP Specification
+﻿# Veris MVP Specification
 
 ## Purpose
 
@@ -75,47 +75,72 @@ Each job stores:
 * Arc Testnet only
 
 
+
 ## Validated Arc Testnet milestones
+
 
 
 ### Job 1: approval and provider payment
 
 On 30 July 2026, Job 1 completed the full Veris escrow approval path on Arc Testnet.
 
-- The requester created and funded Job 1 with 0.01 USDC
-- The provider submitted a cryptographic hash of the completed result
-- The assigned verifier approved the submission
-- The contract released the escrow payment to the provider
-- The stored escrow amount changed from 0.01 USDC to zero
-- The job status changed from FUNDED to SUBMITTED and finally RELEASED
-- The provider's wallet balance increased after settlement
+* The requester created and funded Job 1 with 0.01 USDC
+* The provider submitted a cryptographic hash of the completed result
+* The assigned verifier approved the submission
+* The contract released the escrow payment to the provider
+* The stored escrow amount changed from 0.01 USDC to zero
+* The job status changed from FUNDED to SUBMITTED and finally RELEASED
+* The provider's wallet balance increased after settlement
 
 #### Job 1 transactions
 
-- Job creation: 0xcf74fa1c00785d062e05c6abb35efd920f76f0e1e0739418af6133995f2f9777
-- Result submission: 0xabb88a71487c45b52cf02415498d3b6b5d23336c94d77dff08d4be157168e576
-- Result approval and payment release: 0x1aa08fe4f4bf29f0d3299ee94c575467b3a73eee380c7f8167c0a6d40e79aaa4
+* Job creation: 0xcf74fa1c00785d062e05c6abb35efd920f76f0e1e0739418af6133995f2f9777
+* Result submission: 0xabb88a71487c45b52cf02415498d3b6b5d23336c94d77dff08d4be157168e576
+* Result approval and payment release: 0x1aa08fe4f4bf29f0d3299ee94c575467b3a73eee380c7f8167c0a6d40e79aaa4
 
 ### Job 2: verifier rejection and requester refund
 
 On 30 July 2026, Job 2 completed the verifier-rejection refund path on Arc Testnet.
 
-- The requester created and funded Job 2 with 0.01 USDC
-- The provider submitted a cryptographic hash of the completed result
-- The assigned verifier rejected the submission
-- The contract refunded the escrow payment to the requester
-- The stored escrow amount changed from 0.01 USDC to zero
-- The job status changed from FUNDED to SUBMITTED and finally REFUNDED
-- The verifier paid a network fee of 0.0019562676 USDC for the rejection transaction
+* The requester created and funded Job 2 with 0.01 USDC
+* The provider submitted a cryptographic hash of the completed result
+* The assigned verifier rejected the submission
+* The contract refunded the escrow payment to the requester
+* The stored escrow amount changed from 0.01 USDC to zero
+* The job status changed from FUNDED to SUBMITTED and finally REFUNDED
+* The verifier paid a network fee of 0.0019562676 USDC for the rejection transaction
 
 #### Job 2 transactions
 
-- Job creation: 0x6ff5de1a3c5253bb24a6e3b75c7ddecc5574e81d100cdd0e92d00946cb452d7d
-- Result submission: 0x201cbc2b7c886a1a87c4ce88cd77c7085d2f50a291eb6034480fac87cc81eb42
-- Result rejection and requester refund: 0xb2f75b191b89831642c607e4b1a1d21ee1e4b135dcdfdffcf33661b6ec8f30da
+* Job creation: 0x6ff5de1a3c5253bb24a6e3b75c7ddecc5574e81d100cdd0e92d00946cb452d7d
+* Result submission: 0x201cbc2b7c886a1a87c4ce88cd77c7085d2f50a291eb6034480fac87cc81eb42
+* Result rejection and requester refund: 0xb2f75b191b89831642c607e4b1a1d21ee1e4b135dcdfdffcf33661b6ec8f30da
+
+### Job 3: missed work deadline and requester refund
+
+On 30 July 2026, Job 3 completed the missed-work-deadline refund path on Arc Testnet.
+
+- The requester created and funded Job 3 with 0.01 USDC
+- The provider submitted no result before the work deadline
+- The result hash remained zero
+- The requester called refundExpiredJob(3) after the deadline expired
+- The contract refunded the escrow payment to the requester
+- The stored escrow amount changed from 0.01 USDC to zero
+- The job status changed from FUNDED to REFUNDED
+- The requester paid a network fee of 0.001570350604447282 USDC
+- The requester balance changed from 59.917859821428103430 USDC to 59.926289470823656148 USDC
+- The final balance exactly matched the original balance plus the 0.01 USDC refund minus the network fee
+
+#### Job 3 transactions
+
+- Job creation: 0x894c1e0854aa4ca187cd674d96391595913f52ebfa7249edfd1a45d989555b0d
+- Missed-deadline refund: 0x8f6dae10261de713c644bcd8b477dcfff98b59bf2a09bee0e9fadd7a25fa9183
 
 ### Deployment
 
-- Contract address: 0x635470aff03f11eb4f16cd11c4b7c4884132204c
+* Contract address: 0x635470aff03f11eb4f16cd11c4b7c4884132204c
 
-These tests validate both the approval-and-release path and the verifier-rejection refund path. The missed-work-deadline refund, verification-timeout refund, backend automation, database integration and user-facing interface remain to be tested or implemented.
+These tests validate the approval-and-release path, verifier-rejection refund path and missed-work-deadline refund path. The verification-timeout refund, backend automation, database integration and user-facing interface remain to be tested or implemented.
+
+
+
