@@ -1,7 +1,9 @@
 import Fastify, {
   type FastifyInstance,
 } from "fastify";
+import { HttpError } from "./errors/http-error.js";
 import { registerJobRoutes } from "./routes/jobs.js";
+import { registerTransactionRoutes } from "./routes/transactions.js";
 
 export function buildApp(): FastifyInstance {
   const app = Fastify({
@@ -9,7 +11,14 @@ export function buildApp(): FastifyInstance {
   });
 
   app.setErrorHandler((error, request, reply) => {
-    app.log.error(error);
+    if (error instanceof HttpError) {
+      return reply.code(error.statusCode).send({
+        error: error.code,
+        message: error.message,
+      });
+    }
+
+    request.log.error(error);
 
     const message =
       error instanceof Error
@@ -39,7 +48,7 @@ export function buildApp(): FastifyInstance {
   });
 
   registerJobRoutes(app);
+  registerTransactionRoutes(app);
 
   return app;
 }
-

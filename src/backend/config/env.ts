@@ -1,5 +1,14 @@
 import { z } from "zod";
 
+const evmAddressSchema = z.string().regex(
+  /^0x[a-fA-F0-9]{40}$/,
+  "Value must be a valid EVM address.",
+);
+
+const walletIdSchema = z
+  .string()
+  .uuid("Value must be a valid Circle wallet ID.");
+
 const environmentSchema = z.object({
   NODE_ENV: z
     .enum(["development", "test", "production"])
@@ -22,13 +31,22 @@ const environmentSchema = z.object({
     .url()
     .default("https://rpc.testnet.arc.network"),
 
-  VERIS_CONTRACT_ADDRESS: z
-    .string()
-    .regex(
-      /^0x[a-fA-F0-9]{40}$/,
-      "VERIS_CONTRACT_ADDRESS must be a valid EVM address.",
-    )
-    .default("0x635470aff03f11eb4f16cd11c4b7c4884132204c"),
+  ARC_EXPLORER_URL: z
+    .url()
+    .default("https://testnet.arcscan.app"),
+
+  VERIS_CONTRACT_ADDRESS: evmAddressSchema.default(
+    "0x635470aff03f11eb4f16cd11c4b7c4884132204c",
+  ),
+
+  VERIS_REQUESTER_WALLET_ID: walletIdSchema,
+  VERIS_REQUESTER_ADDRESS: evmAddressSchema,
+
+  VERIS_PROVIDER_WALLET_ID: walletIdSchema,
+  VERIS_PROVIDER_ADDRESS: evmAddressSchema,
+
+  VERIS_VERIFIER_WALLET_ID: walletIdSchema,
+  VERIS_VERIFIER_ADDRESS: evmAddressSchema,
 });
 
 const result = environmentSchema.safeParse(process.env);
