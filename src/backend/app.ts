@@ -2,6 +2,7 @@ import Fastify, {
   type FastifyInstance,
 } from "fastify";
 import { HttpError } from "./errors/http-error.js";
+import { registerJobActionRoutes } from "./routes/job-actions.js";
 import { registerJobRoutes } from "./routes/jobs.js";
 import { registerTransactionRoutes } from "./routes/transactions.js";
 
@@ -48,6 +49,7 @@ export function buildApp(): FastifyInstance {
   });
 
   registerJobRoutes(app);
+  registerJobActionRoutes(app);
   registerTransactionRoutes(app);
 
   return app;
