@@ -4,12 +4,12 @@ import { z } from "zod";
 import { HttpError } from "../errors/http-error.js";
 import {
   approveResultTransaction,
-  createJobTransaction,
   refundExpiredJobTransaction,
   refundVerificationTimeoutTransaction,
   rejectResultTransaction,
   submitResultTransaction,
 } from "../services/veris/actions.js";
+import { createPersistedJob } from "../services/veris/job-creation.js";
 
 type JobParams = {
   jobId: string;
@@ -40,19 +40,30 @@ const amountSchema = z
   );
 
 const createJobSchema = z.object({
+  title: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200),
+
   providerAddress: addressSchema,
+
   verifierAddress: addressSchema,
+
   taskDescription: z
     .string()
     .trim()
     .min(1)
     .max(10_000),
+
   amount: amountSchema,
+
   workWindowSeconds: z
     .number()
     .int()
     .positive()
     .max(31_536_000),
+
   verificationWindowSeconds: z
     .number()
     .int()
@@ -100,7 +111,7 @@ export function registerJobActionRoutes(
     );
 
     const result =
-      await createJobTransaction(input);
+      await createPersistedJob(input);
 
     return reply.code(202).send(result);
   });
