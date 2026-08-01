@@ -14,6 +14,10 @@ type HealthResponse = {
   network: string;
 };
 
+type NextJobIdResponse = {
+  nextJobId: string;
+};
+
 type JobResponse = {
   jobId: string;
   requester: string;
@@ -41,6 +45,14 @@ type CreateJobResponse = {
 type CircleTransaction = {
   state?: string;
   txHash?: string;
+};
+
+type SubmitResultResponse = {
+  action: string;
+  jobId: string;
+  transactionId: string;
+  state: string;
+  resultHash: string;
 };
 
 type ReconciliationResponse = {
@@ -141,6 +153,49 @@ function formatDeadline(timestamp: string) {
   return new Date(milliseconds).toLocaleString();
 }
 
+function getRoleMessage(
+  role: Role,
+  status: string | undefined,
+) {
+  if (!status) {
+    return "Loading current job state";
+  }
+
+  if (role === "requester") {
+    if (status === "SUBMITTED") {
+      return "Result submitted and awaiting verifier decision";
+    }
+
+    if (status === "RELEASED") {
+      return "Escrow released to the provider";
+    }
+
+    if (status === "REFUNDED") {
+      return "Escrow refunded to the requester";
+    }
+
+    return "Waiting for provider submission";
+  }
+
+  if (role === "provider") {
+    if (status === "FUNDED") {
+      return "Job is funded and ready for result submission";
+    }
+
+    if (status === "SUBMITTED") {
+      return "Result is onchain and awaiting verification";
+    }
+
+    return "No provider action is available for this state";
+  }
+
+  if (status === "SUBMITTED") {
+    return "Submitted result is ready for verification";
+  }
+
+  return "Verification begins after provider submission";
+}
+
 function App() {
   const [selectedRole, setSelectedRole] =
     useState<Role>("requester");
@@ -148,9 +203,9 @@ function App() {
     useState<HealthResponse | null>(null);
   const [job, setJob] = useState<JobResponse | null>(null);
   const [currentJobTitle, setCurrentJobTitle] = useState(
-    "Veris API Integration Test",
+    "Latest Veris escrow",
   );
-  const [currentJobId, setCurrentJobId] = useState("5");
+  const [currentJobId, setCurrentJobId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -161,19 +216,42 @@ function App() {
     useState<string | null>(null);
   const [creationExplorerUrl, setCreationExplorerUrl] =
     useState<string | null>(null);
+  const [resultDescription, setResultDescription] =
+    useState("");
+  const [submittingResult, setSubmittingResult] =
+    useState(false);
+  const [submissionStatus, setSubmissionStatus] =
+    useState<string | null>(null);
+  const [submissionExplorerUrl, setSubmissionExplorerUrl] =
+    useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const [healthData, jobData] = await Promise.all([
+      const [healthData, nextJobData] = await Promise.all([
         fetchJson<HealthResponse>("/health"),
-        fetchJson<JobResponse>("/api/jobs/" + currentJobId),
+        fetchJson<NextJobIdResponse>("/api/jobs/next-id"),
       ]);
+
+      const nextJobId = BigInt(nextJobData.nextJobId);
+
+      if (nextJobId <= 1n) {
+        throw new Error("No Veris jobs exist yet.");
+      }
+
+      const latestJobId = (nextJobId - 1n).toString();
+      const jobData = await fetchJson<JobResponse>(
+        "/api/jobs/" + latestJobId,
+      );
 
       setHealth(healthData);
       setJob(jobData);
+      setCurrentJobId(latestJobId);
+      setCurrentJobTitle(
+        "Veris onchain job #" + latestJobId,
+      );
     } catch (requestError) {
       setError(
         requestError instanceof Error
@@ -183,7 +261,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [currentJobId]);
+  }, []);
 
   useEffect(() => {
     void loadDashboard();
@@ -298,6 +376,135 @@ function App() {
     }
   }
 
+  async function handleSubmitResult(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (!job || !currentJobId) {
+      setSubmissionStatus(
+        "The active job is not available yet.",
+      );
+      return;
+    }
+
+    setSubmittingResult(true);
+    setSubmissionExplorerUrl(null);
+    setSubmissionStatus(
+      "Sending result transaction to Circle...",
+    );
+
+    try {
+      const submitted = await fetchJson<SubmitResultResponse>(
+        "/api/jobs/" + currentJobId + "/submit",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            resultDescription:
+              resultDescription.trim(),
+          }),
+        },
+      );
+
+      let terminalState = submitted.state;
+      let arcTransactionHash: string | undefined;
+
+      for (let attempt = 1; attempt <= 30; attempt += 1) {
+        setSubmissionStatus(
+          "Waiting for Arc confirmation... attempt " +
+            attempt +
+            "/30",
+        );
+
+        const transaction =
+          await fetchJson<CircleTransaction>(
+            "/api/transactions/" +
+              submitted.transactionId,
+          );
+
+        terminalState =
+          transaction.state ?? "UNKNOWN";
+        arcTransactionHash = transaction.txHash;
+
+        if (
+          terminalState === "FAILED" ||
+          terminalState === "CANCELLED" ||
+          terminalState === "DENIED"
+        ) {
+          throw new Error(
+            "Circle transaction ended in state " +
+              terminalState +
+              ".",
+          );
+        }
+
+        if (terminalState === "COMPLETE") {
+          break;
+        }
+
+        await delay(3000);
+      }
+
+      if (terminalState !== "COMPLETE") {
+        throw new Error(
+          "Transaction did not complete within 90 seconds.",
+        );
+      }
+
+      if (arcTransactionHash) {
+        setSubmissionExplorerUrl(
+          "https://testnet.arcscan.app/tx/" +
+            arcTransactionHash,
+        );
+      }
+
+      setSubmissionStatus(
+        "Confirming the submitted job state on Arc...",
+      );
+
+      let submittedJob: JobResponse | null = null;
+
+      for (let attempt = 1; attempt <= 15; attempt += 1) {
+        const refreshedJob =
+          await fetchJson<JobResponse>(
+            "/api/jobs/" + currentJobId,
+          );
+
+        if (refreshedJob.status === "SUBMITTED") {
+          submittedJob = refreshedJob;
+          break;
+        }
+
+        await delay(2000);
+      }
+
+      if (!submittedJob) {
+        throw new Error(
+          "The transaction completed, but the job has not changed to SUBMITTED yet.",
+        );
+      }
+
+      setJob(submittedJob);
+      setResultDescription("");
+      setSubmissionStatus(
+        "Result submitted for job #" +
+          submittedJob.jobId +
+          ". Verifier review is now open.",
+      );
+    } catch (submissionError) {
+      setSubmissionStatus(
+        submissionError instanceof Error
+          ? submissionError.message
+          : "The result could not be submitted.",
+      );
+    } finally {
+      setSubmittingResult(false);
+    }
+  }
+
   const selectedRoleData = roles.find(
     (role) => role.id === selectedRole,
   );
@@ -324,15 +531,15 @@ function App() {
 
         <nav className="navigation">
           <button className="nav-item active">
-            <span>◫</span>
+            <span>â—«</span>
             Overview
           </button>
           <button className="nav-item">
-            <span>◇</span>
+            <span>â—‡</span>
             Jobs
           </button>
           <button className="nav-item">
-            <span>↗</span>
+            <span>â†—</span>
             Transactions
           </button>
         </nav>
@@ -529,7 +736,7 @@ function App() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      View creation transaction on Arcscan ↗
+                      View creation transaction on Arcscan â†—
                     </a>
                   ) : null}
                 </div>
@@ -546,6 +753,108 @@ function App() {
           </section>
         ) : null}
 
+        {selectedRole === "provider" ? (
+          <section className="create-panel">
+            <div className="create-heading">
+              <div>
+                <p className="eyebrow">
+                  PROVIDER DELIVERY
+                </p>
+                <h2>Submit completed work</h2>
+                <p>
+                  This creates a real Arc Testnet transaction from the
+                  configured provider wallet. It records the result hash
+                  onchain but does not release the escrow.
+                </p>
+              </div>
+              <span className="testnet-badge">
+                JOB #{currentJobId || "â€”"}
+              </span>
+            </div>
+
+            {job?.status === "FUNDED" ? (
+              <form
+                className="create-form"
+                onSubmit={handleSubmitResult}
+              >
+                <label className="full-field">
+                  <span>Result description or delivery reference</span>
+                  <textarea
+                    required
+                    rows={5}
+                    value={resultDescription}
+                    onChange={(event) =>
+                      setResultDescription(
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Describe the completed work and include a delivery URL, repository, file reference or verification notes."
+                  />
+                </label>
+
+                <div className="create-submit-row full-field">
+                  <div>
+                    {submissionStatus ? (
+                      <p className="creation-status">
+                        {submissionStatus}
+                      </p>
+                    ) : (
+                      <p className="creation-hint">
+                        Submit only after the deliverable is complete.
+                      </p>
+                    )}
+
+                    {submissionExplorerUrl ? (
+                      <a
+                        href={submissionExplorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        View submission transaction on Arcscan â†—
+                      </a>
+                    ) : null}
+                  </div>
+
+                  <button
+                    className="primary-button create-submit"
+                    disabled={
+                      submittingResult ||
+                      resultDescription.trim().length === 0
+                    }
+                    type="submit"
+                  >
+                    {submittingResult
+                      ? "Submitting result..."
+                      : "Submit result onchain"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="create-submit-row">
+                <div>
+                  <p className="creation-status">
+                    {job?.status === "SUBMITTED"
+                      ? "Result is already submitted and awaiting verifier review."
+                      : "Provider submission is unavailable while the job status is " +
+                        (job?.status ?? "loading") +
+                        "."}
+                  </p>
+
+                  {submissionExplorerUrl ? (
+                    <a
+                      href={submissionExplorerUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View submission transaction on Arcscan â†—
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </section>
+        ) : null}
+
         <section className="role-switcher">
           {roles.map((role) => (
             <button
@@ -555,7 +864,13 @@ function App() {
                   ? "role-button selected"
                   : "role-button"
               }
-              onClick={() => setSelectedRole(role.id)}
+              onClick={() => {
+                setSelectedRole(role.id);
+
+                if (role.id !== "requester") {
+                  setShowCreateForm(false);
+                }
+              }}
             >
               <strong>{role.label}</strong>
               <span>{role.description}</span>
@@ -566,12 +881,12 @@ function App() {
         <section className="stats-grid">
           <article className="stat-card">
             <span>Active escrow</span>
-            <strong>{job ? job.amount + " USDC" : "—"}</strong>
+            <strong>{job ? job.amount + " USDC" : "â€”"}</strong>
             <small>Secured in the Veris contract</small>
           </article>
           <article className="stat-card">
             <span>Active jobs</span>
-            <strong>{job ? "1" : "—"}</strong>
+            <strong>{job ? "1" : "â€”"}</strong>
             <small>Current testnet workload</small>
           </article>
           <article className="stat-card">
@@ -583,7 +898,7 @@ function App() {
           </article>
           <article className="stat-card">
             <span>Current role</span>
-            <strong>{selectedRoleData?.label ?? "—"}</strong>
+            <strong>{selectedRoleData?.label ?? "â€”"}</strong>
             <small>Role-specific workspace</small>
           </article>
         </section>
@@ -608,16 +923,26 @@ function App() {
             <div className="job-meta">
               <div>
                 <span>Job ID</span>
-                <strong>#{job?.jobId ?? "—"}</strong>
+                <strong>#{job?.jobId ?? "â€”"}</strong>
               </div>
               <div>
                 <span>Escrow</span>
-                <strong>{job ? job.amount + " USDC" : "—"}</strong>
+                <strong>{job ? job.amount + " USDC" : "â€”"}</strong>
               </div>
               <div>
-                <span>Work deadline</span>
+                <span>
+                  {job?.status === "SUBMITTED"
+                    ? "Verification deadline"
+                    : "Work deadline"}
+                </span>
                 <strong>
-                  {job ? formatDeadline(job.workDeadline) : "—"}
+                  {job
+                    ? formatDeadline(
+                        job.status === "SUBMITTED"
+                          ? job.verificationDeadline
+                          : job.workDeadline,
+                      )
+                    : "â€”"}
                 </strong>
               </div>
             </div>
@@ -633,7 +958,7 @@ function App() {
                   key={step}
                 >
                   <div className="progress-marker">
-                    {index < completedSteps ? "✓" : index + 1}
+                    {index < completedSteps ? "âœ“" : index + 1}
                   </div>
                   <span>{step}</span>
                 </div>
@@ -644,11 +969,10 @@ function App() {
               <div>
                 <span>{selectedRoleData?.label} workspace</span>
                 <strong>
-                  {selectedRole === "requester"
-                    ? "Waiting for provider submission"
-                    : selectedRole === "provider"
-                      ? "Job is funded and ready for work"
-                      : "Verification begins after submission"}
+                  {getRoleMessage(
+                    selectedRole,
+                    job?.status,
+                  )}
                 </strong>
               </div>
               <span className="action-state">
@@ -659,15 +983,15 @@ function App() {
             <div className="address-grid">
               <div>
                 <span>Requester</span>
-                <code>{job ? shortenAddress(job.requester) : "—"}</code>
+                <code>{job ? shortenAddress(job.requester) : "â€”"}</code>
               </div>
               <div>
                 <span>Provider</span>
-                <code>{job ? shortenAddress(job.provider) : "—"}</code>
+                <code>{job ? shortenAddress(job.provider) : "â€”"}</code>
               </div>
               <div>
                 <span>Verifier</span>
-                <code>{job ? shortenAddress(job.verifier) : "—"}</code>
+                <code>{job ? shortenAddress(job.verifier) : "â€”"}</code>
               </div>
             </div>
           </article>
@@ -684,22 +1008,22 @@ function App() {
               <div>
                 <dt>Contract</dt>
                 <dd>
-                  {job ? shortenAddress(job.contractAddress) : "—"}
+                  {job ? shortenAddress(job.contractAddress) : "â€”"}
                 </dd>
               </div>
               <div>
                 <dt>Status code</dt>
-                <dd>{job?.statusCode ?? "—"}</dd>
+                <dd>{job?.statusCode ?? "â€”"}</dd>
               </div>
               <div>
                 <dt>Verification window</dt>
                 <dd>
-                  {job ? job.verificationWindow + " sec" : "—"}
+                  {job ? job.verificationWindow + " sec" : "â€”"}
                 </dd>
               </div>
               <div>
                 <dt>Task hash</dt>
-                <dd>{job ? shortenAddress(job.taskHash) : "—"}</dd>
+                <dd>{job ? shortenAddress(job.taskHash) : "â€”"}</dd>
               </div>
             </dl>
 
@@ -711,7 +1035,7 @@ function App() {
                 rel="noreferrer"
               >
                 View contract on Arcscan
-                <span>↗</span>
+                <span>â†—</span>
               </a>
             ) : null}
           </aside>
