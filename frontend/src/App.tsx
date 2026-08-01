@@ -55,6 +55,13 @@ type SubmitResultResponse = {
   resultHash: string;
 };
 
+type VerifierDecisionResponse = {
+  action: string;
+  jobId: string;
+  transactionId: string;
+  state: string;
+};
+
 type ReconciliationResponse = {
   reconciled: boolean;
   onchainJobId?: string;
@@ -223,6 +230,12 @@ function App() {
   const [submissionStatus, setSubmissionStatus] =
     useState<string | null>(null);
   const [submissionExplorerUrl, setSubmissionExplorerUrl] =
+    useState<string | null>(null);
+  const [verifying, setVerifying] =
+    useState(false);
+  const [verifierStatus, setVerifierStatus] =
+    useState<string | null>(null);
+  const [verifierExplorerUrl, setVerifierExplorerUrl] =
     useState<string | null>(null);
 
   const loadDashboard = useCallback(async () => {
@@ -505,6 +518,149 @@ function App() {
     }
   }
 
+  async function handleVerifierDecision(
+    decision: "approve" | "reject",
+  ) {
+    if (!job || !currentJobId) {
+      setVerifierStatus(
+        "The active job is not available yet.",
+      );
+      return;
+    }
+
+    if (job.status !== "SUBMITTED") {
+      setVerifierStatus(
+        "Verifier action requires a SUBMITTED job.",
+      );
+      return;
+    }
+
+    setVerifying(true);
+    setVerifierExplorerUrl(null);
+    setVerifierStatus(
+      decision === "approve"
+        ? "Sending approval transaction to Circle..."
+        : "Sending rejection transaction to Circle...",
+    );
+
+    try {
+      const result =
+        await fetchJson<VerifierDecisionResponse>(
+          "/api/jobs/" +
+            currentJobId +
+            "/" +
+            decision,
+          {
+            method: "POST",
+          },
+        );
+
+      let terminalState = result.state;
+      let arcTransactionHash: string | undefined;
+
+      for (let attempt = 1; attempt <= 30; attempt += 1) {
+        setVerifierStatus(
+          "Waiting for Arc confirmation... attempt " +
+            attempt +
+            "/30",
+        );
+
+        const transaction =
+          await fetchJson<CircleTransaction>(
+            "/api/transactions/" +
+              result.transactionId,
+          );
+
+        terminalState =
+          transaction.state ?? "UNKNOWN";
+        arcTransactionHash = transaction.txHash;
+
+        if (
+          terminalState === "FAILED" ||
+          terminalState === "CANCELLED" ||
+          terminalState === "DENIED"
+        ) {
+          throw new Error(
+            "Circle transaction ended in state " +
+              terminalState +
+              ".",
+          );
+        }
+
+        if (terminalState === "COMPLETE") {
+          break;
+        }
+
+        await delay(3000);
+      }
+
+      if (terminalState !== "COMPLETE") {
+        throw new Error(
+          "Transaction did not complete within 90 seconds.",
+        );
+      }
+
+      if (arcTransactionHash) {
+        setVerifierExplorerUrl(
+          "https://testnet.arcscan.app/tx/" +
+            arcTransactionHash,
+        );
+      }
+
+      const expectedStatus =
+        decision === "approve"
+          ? "RELEASED"
+          : "REFUNDED";
+
+      setVerifierStatus(
+        "Confirming the final job state on Arc...",
+      );
+
+      let resolvedJob: JobResponse | null = null;
+
+      for (let attempt = 1; attempt <= 15; attempt += 1) {
+        const refreshedJob =
+          await fetchJson<JobResponse>(
+            "/api/jobs/" + currentJobId,
+          );
+
+        if (refreshedJob.status === expectedStatus) {
+          resolvedJob = refreshedJob;
+          break;
+        }
+
+        await delay(2000);
+      }
+
+      if (!resolvedJob) {
+        throw new Error(
+          "The transaction completed, but the job has not changed to " +
+            expectedStatus +
+            " yet.",
+        );
+      }
+
+      setJob(resolvedJob);
+      setVerifierStatus(
+        decision === "approve"
+          ? "Job #" +
+              resolvedJob.jobId +
+              " approved. Escrow released to the provider."
+          : "Job #" +
+              resolvedJob.jobId +
+              " rejected. Escrow refunded to the requester.",
+      );
+    } catch (verifierError) {
+      setVerifierStatus(
+        verifierError instanceof Error
+          ? verifierError.message
+          : "The verifier action could not be completed.",
+      );
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   const selectedRoleData = roles.find(
     (role) => role.id === selectedRole,
   );
@@ -531,15 +687,12 @@ function App() {
 
         <nav className="navigation">
           <button className="nav-item active">
-            <span>â—«</span>
             Overview
           </button>
           <button className="nav-item">
-            <span>â—‡</span>
             Jobs
           </button>
           <button className="nav-item">
-            <span>â†—</span>
             Transactions
           </button>
         </nav>
@@ -736,7 +889,7 @@ function App() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      View creation transaction on Arcscan â†—
+                      Open creation transaction on Arcscan
                     </a>
                   ) : null}
                 </div>
@@ -810,7 +963,7 @@ function App() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        View submission transaction on Arcscan â†—
+                        Open submission transaction on Arcscan
                       </a>
                     ) : null}
                   </div>
@@ -846,7 +999,131 @@ function App() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      View submission transaction on Arcscan â†—
+                      Open submission transaction on Arcscan
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {selectedRole === "verifier" ? (
+          <section className="create-panel">
+            <div className="create-heading">
+              <div>
+                <p className="eyebrow">
+                  VERIFIER REVIEW
+                </p>
+                <h2>Resolve submitted work</h2>
+                <p>
+                  Approving releases the escrow to the provider.
+                  Rejecting refunds it to the requester.
+                </p>
+              </div>
+              <span className="testnet-badge">
+                JOB #{currentJobId || "â€”"}
+              </span>
+            </div>
+
+            {job?.status === "SUBMITTED" ? (
+              <div className="create-form">
+                <div className="full-field">
+                  <span className="field-label">
+                    Submitted result hash
+                  </span>
+                  <code className="hash-value">
+                    {job.resultHash}
+                  </code>
+                </div>
+
+                <div className="full-field">
+                  <span className="field-label">
+                    Verification deadline
+                  </span>
+                  <strong>
+                    {formatDeadline(
+                      job.verificationDeadline,
+                    )}
+                  </strong>
+                </div>
+
+                <div className="create-submit-row full-field">
+                  <div>
+                    {verifierStatus ? (
+                      <p className="creation-status">
+                        {verifierStatus}
+                      </p>
+                    ) : (
+                      <p className="creation-hint">
+                        Review the submitted work before choosing a final action.
+                      </p>
+                    )}
+
+                    {verifierExplorerUrl ? (
+                      <a
+                        href={verifierExplorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open verifier transaction on Arcscan
+                      </a>
+                    ) : null}
+                  </div>
+
+                  <div className="topbar-actions">
+                    <button
+                      className="refresh-button"
+                      disabled={verifying}
+                      onClick={() =>
+                        void handleVerifierDecision(
+                          "reject",
+                        )
+                      }
+                      type="button"
+                    >
+                      {verifying
+                        ? "Processing..."
+                        : "Reject and refund"}
+                    </button>
+
+                    <button
+                      className="primary-button create-submit"
+                      disabled={verifying}
+                      onClick={() =>
+                        void handleVerifierDecision(
+                          "approve",
+                        )
+                      }
+                      type="button"
+                    >
+                      {verifying
+                        ? "Processing..."
+                        : "Approve and release"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="create-submit-row">
+                <div>
+                  <p className="creation-status">
+                    {job?.status === "RELEASED"
+                      ? "This job is approved and the escrow has been released."
+                      : job?.status === "REFUNDED"
+                        ? "This job is resolved and the escrow has been refunded."
+                        : "Verifier review is unavailable while the job status is " +
+                          (job?.status ?? "loading") +
+                          "."}
+                  </p>
+
+                  {verifierExplorerUrl ? (
+                    <a
+                      href={verifierExplorerUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open verifier transaction on Arcscan
                     </a>
                   ) : null}
                 </div>

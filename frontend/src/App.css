@@ -689,3 +689,23 @@ h2 {
     width: 100%;
   }
 }
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #7f8984;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hash-value {
+  display: block;
+  padding: 13px;
+  border: 1px solid #26302b;
+  border-radius: 11px;
+  color: #c9d2cd;
+  background: #0c0f0e;
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
