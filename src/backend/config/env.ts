@@ -27,6 +27,11 @@ const environmentSchema = z.object({
 
   CIRCLE_ENTITY_SECRET: z.string().min(1),
 
+  DATABASE_URL: z.string().regex(
+    /^postgres(?:ql)?:\/\//,
+    "DATABASE_URL must be a PostgreSQL connection string.",
+  ),
+
   ARC_RPC_URL: z
     .url()
     .default("https://rpc.testnet.arc.network"),

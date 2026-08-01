@@ -10,7 +10,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "typecheck": "tsc --noEmit",
     "backend:dev": "tsx watch src/backend/server.ts",
-    "backend:start": "tsx src/backend/server.ts"
+    "backend:start": "tsx src/backend/server.ts",
+    "db:migrate": "tsx --env-file=.env src/backend/db/migrate.ts"
   },
   "keywords": [],
   "author": "",
