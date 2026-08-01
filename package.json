@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "backend:dev": "tsx watch src/backend/server.ts",
     "backend:start": "tsx src/backend/server.ts",
-    "db:migrate": "tsx --env-file=.env src/backend/db/migrate.ts"
+    "db:migrate": "tsx --env-file=.env src/backend/db/migrate.ts",
+    "db:seed": "tsx --env-file=.env src/backend/db/seed.ts"
   },
   "keywords": [],
   "author": "",
