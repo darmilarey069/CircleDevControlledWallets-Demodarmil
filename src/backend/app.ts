@@ -4,6 +4,7 @@ import Fastify, {
 import { HttpError } from "./errors/http-error.js";
 import { registerJobActionRoutes } from "./routes/job-actions.js";
 import { registerJobRoutes } from "./routes/jobs.js";
+import { registerReconciliationRoutes } from "./routes/reconciliation.js";
 import { registerTransactionRoutes } from "./routes/transactions.js";
 
 export function buildApp(): FastifyInstance {
@@ -50,6 +51,7 @@ export function buildApp(): FastifyInstance {
 
   registerJobRoutes(app);
   registerJobActionRoutes(app);
+  registerReconciliationRoutes(app);
   registerTransactionRoutes(app);
 
   return app;
